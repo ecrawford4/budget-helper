@@ -1,0 +1,274 @@
+package budgethelper;
+
+import java.awt.Dimension;
+import java.io.IOException;
+import java.util.List;
+
+import javax.swing.JFrame;
+import javax.swing.JOptionPane;
+import javax.swing.JTabbedPane;
+import javax.swing.WindowConstants;
+
+public final class BudgetAppFrame extends JFrame {
+    private final BudgetDataStore dataStore;
+    private final LocalProfileStore profileStore;
+    private final JTabbedPane tabs;
+    private AppPreferences preferences;
+    private boolean suppressAutoSave;
+    private String currentProfileKey;
+
+    public BudgetAppFrame() {
+        super("Budget Helper");
+        dataStore = new BudgetDataStore();
+        profileStore = new LocalProfileStore();
+        tabs = new JTabbedPane();
+        preferences = AppPreferences.defaults();
+        tabs.addTab("Profile", new ProfileTabPanel(dataStore, new ProfileActions()));
+        tabs.addTab("Budget Entry", new BudgetEntryPanel(dataStore));
+        tabs.addTab("Summary", new BudgetSummaryPanel(dataStore));
+        tabs.addTab("Reporting", new BudgetReportingPanel(dataStore));
+        setContentPane(tabs);
+        setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+        setPreferredSize(new Dimension(1180, 760));
+        loadInitialProfile();
+        dataStore.addChangeListener(this::saveProfileSilently);
+        applyInitialTabSelection();
+        pack();
+        setLocationRelativeTo(null);
+    }
+
+    private void loadInitialProfile() {
+        try {
+            preferences = profileStore.loadPreferences();
+            currentProfileKey = profileStore.getCurrentProfileKey();
+            suppressAutoSave = true;
+            dataStore.replaceProfile(profileStore.loadProfile(currentProfileKey));
+            suppressAutoSave = false;
+        } catch (IOException | RuntimeException exception) {
+            suppressAutoSave = false;
+            JOptionPane.showMessageDialog(this,
+                    "The local budget profile could not be loaded.\n\n" + exception.getMessage(),
+                    "Profile Load Failed",
+                    JOptionPane.ERROR_MESSAGE);
+            preferences = AppPreferences.defaults();
+            currentProfileKey = profileStore.toProfileKey(dataStore.getProfileInfo().displayBudgetName());
+        }
+    }
+
+    private void saveProfileSilently() {
+        if (suppressAutoSave) {
+            return;
+        }
+        try {
+            if (currentProfileKey == null || currentProfileKey.isBlank()) {
+                currentProfileKey = profileStore.toProfileKey(dataStore.getProfileInfo().displayBudgetName());
+            }
+            profileStore.saveProfile(currentProfileKey, dataStore.exportProfile());
+            profileStore.saveCurrentProfileKey(currentProfileKey);
+        } catch (IOException exception) {
+            JOptionPane.showMessageDialog(this,
+                    "The local budget profile could not be saved to\n" + profileStore.getProfilePath(currentProfileKey)
+                            + "\n\n" + exception.getMessage(),
+                    "Profile Save Failed",
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void saveProfileInfo(BudgetProfileInfo updatedInfo) {
+        dataStore.updateProfileInfo(updatedInfo);
+        JOptionPane.showMessageDialog(this, "Profile details saved for " + updatedInfo.displayBudgetName() + ".",
+                "Profile Updated", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void saveAsProfile(BudgetProfileInfo updatedInfo) {
+        try {
+            currentProfileKey = profileStore.toProfileKey(updatedInfo.displayBudgetName());
+            suppressAutoSave = true;
+            dataStore.updateProfileInfo(updatedInfo);
+            suppressAutoSave = false;
+            profileStore.saveProfile(currentProfileKey, dataStore.exportProfile());
+            profileStore.saveCurrentProfileKey(currentProfileKey);
+            JOptionPane.showMessageDialog(this, "Profile saved as " + updatedInfo.displayBudgetName() + ".",
+                    "Profile Saved", JOptionPane.INFORMATION_MESSAGE);
+        } catch (IOException exception) {
+            suppressAutoSave = false;
+            JOptionPane.showMessageDialog(this, exception.getMessage(), "Profile Save Failed",
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void duplicateCurrentProfile(BudgetProfileInfo duplicateInfo) {
+        String duplicateKey = profileStore.toProfileKey(duplicateInfo.displayBudgetName());
+        if (duplicateKey.equals(currentProfileKey)) {
+            JOptionPane.showMessageDialog(this, "Choose a new budget name before duplicating this profile.",
+                    "Duplicate Profile", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        saveAsProfile(duplicateInfo);
+    }
+
+    private void promptAndLoadProfile() {
+        try {
+            List<LocalProfileStore.SavedProfile> profiles = profileStore.listProfiles();
+            if (profiles.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "No saved profiles were found yet.", "No Profiles",
+                        JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
+            LocalProfileStore.SavedProfile selectedProfile = (LocalProfileStore.SavedProfile) JOptionPane
+                    .showInputDialog(
+                            this,
+                            "Select a budget profile to load.",
+                            "Load Profile",
+                            JOptionPane.PLAIN_MESSAGE,
+                            null,
+                            profiles.toArray(),
+                            profiles.stream().filter(profile -> profile.profileKey().equals(currentProfileKey))
+                                    .findFirst().orElse(profiles.get(0)));
+            if (selectedProfile != null) {
+                loadProfile(selectedProfile.profileKey());
+            }
+        } catch (IOException exception) {
+            JOptionPane.showMessageDialog(this, exception.getMessage(), "Profile Load Failed",
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void renameCurrentProfile(BudgetProfileInfo updatedInfo) {
+        String newProfileKey = profileStore.toProfileKey(updatedInfo.displayBudgetName());
+        try {
+            String oldProfileKey = currentProfileKey;
+            suppressAutoSave = true;
+            dataStore.updateProfileInfo(updatedInfo);
+            suppressAutoSave = false;
+            profileStore.saveProfile(oldProfileKey, dataStore.exportProfile());
+            profileStore.renameProfile(oldProfileKey, newProfileKey);
+            currentProfileKey = newProfileKey;
+            profileStore.saveCurrentProfileKey(currentProfileKey);
+            JOptionPane.showMessageDialog(this, "Profile renamed to " + updatedInfo.displayBudgetName() + ".",
+                    "Profile Renamed", JOptionPane.INFORMATION_MESSAGE);
+        } catch (IOException exception) {
+            suppressAutoSave = false;
+            JOptionPane.showMessageDialog(this, exception.getMessage(), "Profile Rename Failed",
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void deleteCurrentProfile() {
+        int choice = JOptionPane.showConfirmDialog(this,
+                "Delete the current profile " + dataStore.getProfileInfo().displayBudgetName() + "?",
+                "Confirm Delete",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+        if (choice != JOptionPane.YES_OPTION) {
+            return;
+        }
+        try {
+            profileStore.deleteProfile(currentProfileKey);
+            List<LocalProfileStore.SavedProfile> profiles = profileStore.listProfiles();
+            if (profiles.isEmpty()) {
+                BudgetProfileInfo defaultInfo = BudgetProfileInfo.empty();
+                currentProfileKey = profileStore.toProfileKey(defaultInfo.displayBudgetName());
+                suppressAutoSave = true;
+                dataStore.replaceProfile(new BudgetProfile(defaultInfo, List.of()));
+                suppressAutoSave = false;
+                profileStore.saveProfile(currentProfileKey, dataStore.exportProfile());
+                profileStore.saveCurrentProfileKey(currentProfileKey);
+            } else {
+                loadProfile(profiles.get(0).profileKey());
+            }
+            JOptionPane.showMessageDialog(this, "Profile deleted.", "Profile Deleted", JOptionPane.INFORMATION_MESSAGE);
+        } catch (IOException exception) {
+            suppressAutoSave = false;
+            JOptionPane.showMessageDialog(this, exception.getMessage(), "Profile Delete Failed",
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void loadProfile(String profileKey) throws IOException {
+        currentProfileKey = profileKey;
+        suppressAutoSave = true;
+        dataStore.replaceProfile(profileStore.loadProfile(profileKey));
+        suppressAutoSave = false;
+        profileStore.saveCurrentProfileKey(currentProfileKey);
+    }
+
+    private void updatePreferences(AppPreferences updatedPreferences) {
+        try {
+            preferences = updatedPreferences;
+            profileStore.savePreferences(preferences);
+            JOptionPane.showMessageDialog(
+                    this, "Preferences saved. The next launch will open on "
+                            + readableTabName(preferences.initialTabId()) + ".",
+                    "Preferences Saved", JOptionPane.INFORMATION_MESSAGE);
+        } catch (IOException exception) {
+            JOptionPane.showMessageDialog(this, exception.getMessage(), "Preferences Save Failed",
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void applyInitialTabSelection() {
+        tabs.setSelectedIndex(switch (preferences.initialTabId()) {
+            case AppPreferences.PROFILE_TAB_ID -> 0;
+            case AppPreferences.SUMMARY_TAB_ID -> 2;
+            case AppPreferences.REPORTING_TAB_ID -> 3;
+            default -> 1;
+        });
+    }
+
+    private String readableTabName(String tabId) {
+        return switch (tabId) {
+            case AppPreferences.PROFILE_TAB_ID -> "Profile";
+            case AppPreferences.SUMMARY_TAB_ID -> "Summary";
+            case AppPreferences.REPORTING_TAB_ID -> "Reporting";
+            default -> "Budget Entry";
+        };
+    }
+
+    private final class ProfileActions implements ProfileTabPanel.Actions {
+        @Override
+        public void saveProfileInfo(BudgetProfileInfo profileInfo) {
+            BudgetAppFrame.this.saveProfileInfo(profileInfo);
+        }
+
+        @Override
+        public void saveAsProfile(BudgetProfileInfo profileInfo) {
+            BudgetAppFrame.this.saveAsProfile(profileInfo);
+        }
+
+        @Override
+        public void duplicateCurrentProfile(BudgetProfileInfo profileInfo) {
+            BudgetAppFrame.this.duplicateCurrentProfile(profileInfo);
+        }
+
+        @Override
+        public void loadProfile() {
+            BudgetAppFrame.this.promptAndLoadProfile();
+        }
+
+        @Override
+        public void renameCurrentProfile(BudgetProfileInfo profileInfo) {
+            BudgetAppFrame.this.renameCurrentProfile(profileInfo);
+        }
+
+        @Override
+        public void deleteCurrentProfile() {
+            BudgetAppFrame.this.deleteCurrentProfile();
+        }
+
+        @Override
+        public AppPreferences getPreferences() {
+            return preferences;
+        }
+
+        @Override
+        public void updatePreferences(AppPreferences preferences) {
+            BudgetAppFrame.this.updatePreferences(preferences);
+        }
+
+        @Override
+        public String getCurrentProfileName() {
+            return dataStore.getProfileInfo().displayBudgetName();
+        }
+    }
+}

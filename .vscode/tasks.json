@@ -1,0 +1,46 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Maven package",
+      "type": "shell",
+      "command": ".\\mvnw.cmd",
+      "args": [
+        "-q",
+        "-DskipTests",
+        "package"
+      ],
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-Command",
+          ".\\mvnw.cmd -q -DskipTests package"
+        ]
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Run packaged budget-helper",
+      "type": "shell",
+      "command": "java",
+      "args": [
+        "-jar",
+        "target/budget-helper-1.0.0.jar"
+      ],
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-Command",
+          "java -jar target/budget-helper-1.0.0.jar"
+        ]
+      },
+      "dependsOn": "Maven package"
+    }
+  ]
+}
