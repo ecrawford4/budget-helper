@@ -45,7 +45,7 @@ public final class AppUpdateService {
         }
         String installerUrl = selectInstallerUrl(payload);
         if (installerUrl == null) {
-            throw new IOException("Latest release was found, but no Windows installer asset was published.");
+            return Optional.empty();
         }
         String installerFileName = installerUrl.substring(installerUrl.lastIndexOf('/') + 1);
         return Optional.of(new UpdateInfo(latestTag, installerUrl, installerFileName));
