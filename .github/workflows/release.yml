@@ -30,7 +30,11 @@ jobs:
       - name: Resolve project version
         id: meta
         run: |
-          $version = .\mvnw.cmd -q -DforceStdout help:evaluate -Dexpression=project.version
+          [xml]$pom = Get-Content pom.xml
+          $version = $pom.project.version
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            throw "Could not resolve project.version from pom.xml"
+          }
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
         shell: pwsh
 
