@@ -30,14 +30,14 @@
       "command": "java",
       "args": [
         "-jar",
-        "target/budget-helper-1.0.0.jar"
+        "target/budget-helper-1.1.3.jar"
       ],
       "windows": {
         "command": "powershell",
         "args": [
           "-NoProfile",
           "-Command",
-          "java -jar target/budget-helper-1.0.0.jar"
+          "java -jar target/budget-helper-1.1.3.jar"
         ]
       },
       "dependsOn": "Maven package"

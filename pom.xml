@@ -6,7 +6,7 @@
 
     <groupId>com.example</groupId>
     <artifactId>budget-helper</artifactId>
-    <version>1.0.0</version>
+    <version>1.1.3</version>
     <name>Budget Helper</name>
     <description>A Swing budgeting app with local profile storage.</description>
 

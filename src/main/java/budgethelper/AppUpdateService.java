@@ -31,7 +31,10 @@ public final class AppUpdateService {
     private final HttpClient httpClient;
 
     public AppUpdateService() {
-        this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .build();
     }
 
     public Optional<UpdateInfo> findUpdate(String currentVersion) throws IOException, InterruptedException {
@@ -114,12 +117,16 @@ public final class AppUpdateService {
         }
         return candidates.stream()
                 .sorted(Comparator
-                        .comparing((AssetCandidate candidate) -> !candidate.name().toLowerCase(Locale.ROOT)
-                                .contains("budgethelper"))
+                        .comparing((AssetCandidate candidate) -> !isPreferredInstallerName(candidate.name()))
                         .thenComparing(candidate -> !candidate.name().toLowerCase(Locale.ROOT).endsWith(".exe")))
                 .map(AssetCandidate::url)
                 .findFirst()
                 .orElse(null);
+    }
+
+    private static boolean isPreferredInstallerName(String assetName) {
+        String normalizedName = assetName.toLowerCase(Locale.ROOT);
+        return normalizedName.contains("budgethelper") || normalizedName.contains("budget-helper");
     }
 
     private static String normalizeVersion(String version) {

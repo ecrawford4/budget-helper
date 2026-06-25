@@ -22,7 +22,7 @@ From the workspace root:
 
 ```powershell
 .\mvnw.cmd -q -DskipTests package
-java -jar target/budget-helper-1.0.0.jar
+java -jar target/budget-helper-1.1.3.jar
 ```
 
 ## Installer Build
@@ -31,7 +31,7 @@ Create a Windows installer with bundled runtime (no separate Java install requir
 
 ```powershell
 .\mvnw.cmd -q -DskipTests package
-jpackage --type exe --name BudgetHelper --input target --main-jar budget-helper-1.0.0.jar --main-class budgethelper.BudgetHelperApp --app-version 1.0.0 --vendor ecrawford4 --win-dir-chooser --win-shortcut --dest target\installer
+jpackage --type exe --name BudgetHelper --input target --main-jar budget-helper-1.1.3.jar --main-class budgethelper.BudgetHelperApp --app-version 1.1.3 --vendor ecrawford4 --win-dir-chooser --win-shortcut --dest target\installer
 ```
 
 Installer output is written under target\installer.
