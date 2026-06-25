@@ -2,6 +2,8 @@ package budgethelper;
 
 import java.awt.Dimension;
 import java.io.IOException;
+import java.awt.Image;
+import javax.imageio.ImageIO;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -38,12 +40,26 @@ public final class BudgetAppFrame extends JFrame {
         setJMenuBar(buildMenuBar());
         setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         setPreferredSize(new Dimension(1180, 760));
+        loadAppIcon();
         loadInitialProfile();
         dataStore.addChangeListener(this::saveProfileSilently);
         applyInitialTabSelection();
         pack();
         setLocationRelativeTo(null);
     }
+
+        private void loadAppIcon() {
+            try (java.io.InputStream stream = getClass().getResourceAsStream("/budgethelper/icon.png")) {
+                if (stream != null) {
+                    Image icon = ImageIO.read(stream);
+                    if (icon != null) {
+                        setIconImage(icon);
+                    }
+                }
+            } catch (IOException ignored) {
+                // icon is optional – missing file does not prevent startup
+            }
+        }
 
     private void loadInitialProfile() {
         try {
