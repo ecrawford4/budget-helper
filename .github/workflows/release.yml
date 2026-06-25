@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -28,7 +27,26 @@ jobs:
         run: .\mvnw.cmd -q -DskipTests package
         shell: pwsh
 
+      - name: Resolve project version
+        id: meta
+        run: |
+          $version = .\mvnw.cmd -q -DforceStdout help:evaluate -Dexpression=project.version
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        shell: pwsh
+
+      - name: Install WiX Toolset
+        run: choco install wixtoolset -y --no-progress
+        shell: pwsh
+
+      - name: Build Windows installer with bundled runtime
+        run: |
+          New-Item -ItemType Directory -Force -Path target\installer | Out-Null
+          jpackage --type exe --name BudgetHelper --input target --main-jar budget-helper-${{ steps.meta.outputs.version }}.jar --main-class budgethelper.BudgetHelperApp --app-version ${{ steps.meta.outputs.version }} --vendor ecrawford4 --win-dir-chooser --win-shortcut --dest target\installer
+        shell: pwsh
+
       - name: Upload release artifact
         uses: softprops/action-gh-release@v2
         with:
-          files: target/budget-helper-1.0.0.jar
+          files: |
+            target/budget-helper-${{ steps.meta.outputs.version }}.jar
+            target/installer/*.exe

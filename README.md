@@ -14,6 +14,7 @@ A simple Java desktop budgeting app built with Swing and Maven.
 - Multiple named local profiles with budget metadata such as budget name, your name, company name, address, billing address, email, and phone
 - A dedicated Profile tab for budget metadata, profile management, and preferences
 - CSV export for the Summary and Reporting views
+- In-app update check that downloads and launches the latest installer from GitHub Releases
 
 ## Run
 
@@ -23,6 +24,22 @@ From the workspace root:
 .\mvnw.cmd -q -DskipTests package
 java -jar target/budget-helper-1.0.0.jar
 ```
+
+## Installer Build
+
+Create a Windows installer with bundled runtime (no separate Java install required):
+
+```powershell
+.\mvnw.cmd -q -DskipTests package
+jpackage --type exe --name BudgetHelper --input target --main-jar budget-helper-1.0.0.jar --main-class budgethelper.BudgetHelperApp --app-version 1.0.0 --vendor ecrawford4 --win-dir-chooser --win-shortcut --dest target\installer
+```
+
+Installer output is written under target\installer.
+
+## Release Automation
+
+- Tag pushes matching v* trigger the release workflow.
+- The workflow uploads both the JAR and Windows installer executable to the GitHub Release.
 
 ## Notes
 

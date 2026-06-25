@@ -2,16 +2,22 @@ package budgethelper;
 
 import java.awt.Dimension;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
-
+import java.util.concurrent.ExecutionException;
 import javax.swing.JFrame;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JTabbedPane;
+import javax.swing.SwingWorker;
 import javax.swing.WindowConstants;
 
 public final class BudgetAppFrame extends JFrame {
     private final BudgetDataStore dataStore;
     private final LocalProfileStore profileStore;
+    private final AppUpdateService updateService;
     private final JTabbedPane tabs;
     private AppPreferences preferences;
     private boolean suppressAutoSave;
@@ -21,6 +27,7 @@ public final class BudgetAppFrame extends JFrame {
         super("Budget Helper");
         dataStore = new BudgetDataStore();
         profileStore = new LocalProfileStore();
+        updateService = new AppUpdateService();
         tabs = new JTabbedPane();
         preferences = AppPreferences.defaults();
         tabs.addTab("Profile", new ProfileTabPanel(dataStore, new ProfileActions()));
@@ -28,6 +35,7 @@ public final class BudgetAppFrame extends JFrame {
         tabs.addTab("Summary", new BudgetSummaryPanel(dataStore));
         tabs.addTab("Reporting", new BudgetReportingPanel(dataStore));
         setContentPane(tabs);
+        setJMenuBar(buildMenuBar());
         setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         setPreferredSize(new Dimension(1180, 760));
         loadInitialProfile();
@@ -223,6 +231,114 @@ public final class BudgetAppFrame extends JFrame {
             case AppPreferences.REPORTING_TAB_ID -> "Reporting";
             default -> "Budget Entry";
         };
+    }
+
+    private JMenuBar buildMenuBar() {
+        JMenuBar menuBar = new JMenuBar();
+        JMenu helpMenu = new JMenu("Help");
+        JMenuItem checkUpdatesItem = new JMenuItem("Check for Updates");
+        checkUpdatesItem.addActionListener(event -> checkForUpdates(checkUpdatesItem));
+        helpMenu.add(checkUpdatesItem);
+        menuBar.add(helpMenu);
+        return menuBar;
+    }
+
+    private void checkForUpdates(JMenuItem checkUpdatesItem) {
+        checkUpdatesItem.setEnabled(false);
+        new SwingWorker<java.util.Optional<AppUpdateService.UpdateInfo>, Void>() {
+            @Override
+            protected java.util.Optional<AppUpdateService.UpdateInfo> doInBackground() throws Exception {
+                return updateService.findUpdate(AppVersion.currentVersion());
+            }
+
+            @Override
+            protected void done() {
+                checkUpdatesItem.setEnabled(true);
+                try {
+                    java.util.Optional<AppUpdateService.UpdateInfo> update = get();
+                    if (update.isEmpty()) {
+                        JOptionPane.showMessageDialog(BudgetAppFrame.this,
+                                "You already have the latest version installed.",
+                                "No Updates Available",
+                                JOptionPane.INFORMATION_MESSAGE);
+                        return;
+                    }
+                    AppUpdateService.UpdateInfo updateInfo = update.get();
+                    int choice = JOptionPane.showConfirmDialog(BudgetAppFrame.this,
+                            "A new version " + updateInfo.latestTag() + " is available.\n\n"
+                                    + "Do you want to download and install it now?",
+                            "Update Available",
+                            JOptionPane.YES_NO_OPTION,
+                            JOptionPane.INFORMATION_MESSAGE);
+                    if (choice == JOptionPane.YES_OPTION) {
+                        downloadAndInstallUpdate(updateInfo);
+                    }
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    JOptionPane.showMessageDialog(BudgetAppFrame.this,
+                            exception.getMessage() == null ? exception.toString() : exception.getMessage(),
+                            "Update Check Failed",
+                            JOptionPane.ERROR_MESSAGE);
+                } catch (ExecutionException exception) {
+                    Throwable cause = exception;
+                    if (exception.getCause() != null) {
+                        cause = exception.getCause();
+                    }
+                    JOptionPane.showMessageDialog(BudgetAppFrame.this,
+                            cause.getMessage() == null ? cause.toString() : cause.getMessage(),
+                            "Update Check Failed",
+                            JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        }.execute();
+    }
+
+    private void downloadAndInstallUpdate(AppUpdateService.UpdateInfo updateInfo) {
+        new SwingWorker<Path, Void>() {
+            @Override
+            protected Path doInBackground() throws Exception {
+                return updateService.downloadInstaller(updateInfo);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    Path installerPath = get();
+                    int launchChoice = JOptionPane.showConfirmDialog(BudgetAppFrame.this,
+                            "Update installer downloaded to:\n" + installerPath + "\n\n"
+                                    + "Launch installer now? The app will close first.",
+                            "Ready to Install Update",
+                            JOptionPane.YES_NO_OPTION,
+                            JOptionPane.INFORMATION_MESSAGE);
+                    if (launchChoice != JOptionPane.YES_OPTION) {
+                        return;
+                    }
+                    updateService.launchInstaller(installerPath);
+                    dispose();
+                    System.exit(0);
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    JOptionPane.showMessageDialog(BudgetAppFrame.this,
+                            exception.getMessage() == null ? exception.toString() : exception.getMessage(),
+                            "Update Install Failed",
+                            JOptionPane.ERROR_MESSAGE);
+                } catch (ExecutionException exception) {
+                    Throwable cause = exception;
+                    if (exception.getCause() != null) {
+                        cause = exception.getCause();
+                    }
+                    JOptionPane.showMessageDialog(BudgetAppFrame.this,
+                            cause.getMessage() == null ? cause.toString() : cause.getMessage(),
+                            "Update Install Failed",
+                            JOptionPane.ERROR_MESSAGE);
+                } catch (IOException exception) {
+                    JOptionPane.showMessageDialog(BudgetAppFrame.this,
+                            exception.getMessage() == null ? exception.toString() : exception.getMessage(),
+                            "Update Install Failed",
+                            JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        }.execute();
     }
 
     private final class ProfileActions implements ProfileTabPanel.Actions {
