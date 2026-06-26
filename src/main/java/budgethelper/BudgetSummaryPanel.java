@@ -9,6 +9,10 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JFileChooser;
@@ -16,26 +20,27 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JSpinner;
 import javax.swing.JTextArea;
 
 public final class BudgetSummaryPanel extends JPanel {
     private static final DateTimeFormatter FILE_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     private final BudgetDataStore dataStore;
-    private final JSpinner startDateSpinner;
-    private final JSpinner endDateSpinner;
+    private final DatePickerField startDateField;
+    private final DatePickerField endDateField;
     private final JTextArea reportArea;
 
     public BudgetSummaryPanel(BudgetDataStore dataStore) {
         super(new BorderLayout(12, 12));
         this.dataStore = dataStore;
-        startDateSpinner = UiSupport.createDateSpinner();
-        endDateSpinner = UiSupport.createDateSpinner();
+        startDateField = UiSupport.createDatePickerField(UiSupport.firstDayOfCurrentMonth());
+        endDateField = UiSupport.createDatePickerField(UiSupport.lastDayOfCurrentMonth());
         reportArea = new JTextArea();
         reportArea.setEditable(false);
         reportArea.setFont(new java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 12));
         setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        startDateField.addDateChangeListener(this::refreshReport);
+        endDateField.addDateChangeListener(this::refreshReport);
         add(buildControls(), BorderLayout.NORTH);
         add(new JScrollPane(reportArea), BorderLayout.CENTER);
         dataStore.addChangeListener(this::refreshReport);
@@ -45,9 +50,9 @@ public final class BudgetSummaryPanel extends JPanel {
     private JPanel buildControls() {
         JPanel controls = new JPanel(new FlowLayout(FlowLayout.LEFT));
         controls.add(new JLabel("Start"));
-        controls.add(startDateSpinner);
+        controls.add(startDateField);
         controls.add(new JLabel("End"));
-        controls.add(endDateSpinner);
+        controls.add(endDateField);
         JButton refreshButton = new JButton("Refresh Summary");
         refreshButton.addActionListener(event -> refreshReport());
         controls.add(refreshButton);
@@ -71,8 +76,8 @@ public final class BudgetSummaryPanel extends JPanel {
 
     private void exportPdf() {
         try {
-            LocalDate startDate = UiSupport.toLocalDate(startDateSpinner);
-            LocalDate endDate = UiSupport.toLocalDate(endDateSpinner);
+            LocalDate startDate = UiSupport.toLocalDate(startDateField);
+            LocalDate endDate = UiSupport.toLocalDate(endDateField);
             validateRange(startDate, endDate);
             JFileChooser fileChooser = new JFileChooser();
             String budgetName = dataStore.getProfileInfo().displayBudgetName().replaceAll("[^A-Za-z0-9-]+", "-");
@@ -90,8 +95,8 @@ public final class BudgetSummaryPanel extends JPanel {
 
     private void exportCsv() {
         try {
-            LocalDate startDate = UiSupport.toLocalDate(startDateSpinner);
-            LocalDate endDate = UiSupport.toLocalDate(endDateSpinner);
+            LocalDate startDate = UiSupport.toLocalDate(startDateField);
+            LocalDate endDate = UiSupport.toLocalDate(endDateField);
             validateRange(startDate, endDate);
             JFileChooser fileChooser = new JFileChooser();
             String budgetName = dataStore.getProfileInfo().displayBudgetName().replaceAll("[^A-Za-z0-9-]+", "-");
@@ -111,8 +116,8 @@ public final class BudgetSummaryPanel extends JPanel {
         if (!dataStore.hasIncomeEntries()) {
             return List.of("Budget Invoice Summary", "", "Add at least one income entry before generating a summary.");
         }
-        LocalDate startDate = UiSupport.toLocalDate(startDateSpinner);
-        LocalDate endDate = UiSupport.toLocalDate(endDateSpinner);
+        LocalDate startDate = UiSupport.toLocalDate(startDateField);
+        LocalDate endDate = UiSupport.toLocalDate(endDateField);
         validateRange(startDate, endDate);
         List<BudgetEntry> incomeEntries = dataStore.getEntries(EntryType.INCOME, startDate, endDate);
         List<BudgetEntry> expenseEntries = dataStore.getEntries(EntryType.BUDGETED_EXPENSE, startDate, endDate);
@@ -152,6 +157,9 @@ public final class BudgetSummaryPanel extends JPanel {
         lines.addAll(formatEntries(expenseEntries, true));
         lines.add("Total Expenses: " + UiSupport.formatCurrency(totalExpenses));
         lines.add("");
+        lines.add("Reporting Snapshot");
+        lines.addAll(formatReportingLines(startDate, endDate));
+        lines.add("");
         lines.add(balance.signum() >= 0 ? "Surplus: " + UiSupport.formatCurrency(balance)
                 : "Deficit: " + UiSupport.formatCurrency(balance.abs()));
         if (incomeEntries.isEmpty() && expenseEntries.isEmpty()) {
@@ -162,8 +170,8 @@ public final class BudgetSummaryPanel extends JPanel {
     }
 
     private List<List<String>> buildSummaryCsvRows() {
-        LocalDate startDate = UiSupport.toLocalDate(startDateSpinner);
-        LocalDate endDate = UiSupport.toLocalDate(endDateSpinner);
+        LocalDate startDate = UiSupport.toLocalDate(startDateField);
+        LocalDate endDate = UiSupport.toLocalDate(endDateField);
         validateRange(startDate, endDate);
         List<BudgetEntry> incomeEntries = dataStore.getEntries(EntryType.INCOME, startDate, endDate);
         List<BudgetEntry> expenseEntries = dataStore.getEntries(EntryType.BUDGETED_EXPENSE, startDate, endDate);
@@ -194,7 +202,58 @@ public final class BudgetSummaryPanel extends JPanel {
                     entry.getAmount().toPlainString()));
         }
         rows.add(List.of("Total Expenses", "", "", totalExpenses.toPlainString()));
+        rows.add(List.of());
+        rows.addAll(buildReportingCsvRows(startDate, endDate));
         rows.add(List.of(balance.signum() >= 0 ? "Surplus" : "Deficit", "", "", balance.abs().toPlainString()));
+        return rows;
+    }
+
+    private List<String> formatReportingLines(LocalDate startDate, LocalDate endDate) {
+        if (!dataStore.hasIncomeEntries()) {
+            return List.of("  Add at least one income entry before viewing the reporting data.");
+        }
+        List<List<String>> reportingRows = buildReportingCsvRows(startDate, endDate);
+        List<String> lines = new ArrayList<>();
+        for (List<String> row : reportingRows) {
+            if (row.isEmpty()) {
+                lines.add("");
+                continue;
+            }
+            if (row.size() == 1) {
+                lines.add(row.get(0));
+                continue;
+            }
+            if (row.size() == 2 && "Budgeted".equals(row.get(1))) {
+                lines.add("  Budgeted: " + row.get(1));
+                continue;
+            }
+            if (row.size() == 4 && !"Category".equals(row.get(0))) {
+                lines.add(String.format("  %-18s  %12s  %12s  %16s", row.get(0), row.get(1), row.get(2), row.get(3)));
+                continue;
+            }
+            if (row.size() == 4 && "Category".equals(row.get(0))) {
+                lines.add(String.format("  %-18s  %12s  %12s  %16s", row.get(0), row.get(1), row.get(2), row.get(3)));
+            }
+        }
+        return lines.isEmpty() ? List.of("  No reporting data exists in this date range.") : lines;
+    }
+
+    private List<List<String>> buildReportingCsvRows(LocalDate startDate, LocalDate endDate) {
+        Map<String, BigDecimal> budgeted = dataStore.totalsByCategory(EntryType.BUDGETED_EXPENSE, startDate, endDate);
+        Map<String, BigDecimal> actual = dataStore.totalsByCategory(EntryType.ACTUAL_EXPENSE, startDate, endDate);
+        Set<String> categories = new TreeSet<>();
+        categories.addAll(budgeted.keySet());
+        categories.addAll(actual.keySet());
+        List<List<String>> rows = new ArrayList<>();
+        rows.add(List.of("Reporting Snapshot"));
+        rows.add(List.of("Category", "Budgeted", "Actual", "Variance"));
+        for (String category : categories) {
+            BigDecimal budgetedAmount = budgeted.getOrDefault(category, BigDecimal.ZERO);
+            BigDecimal actualAmount = actual.getOrDefault(category, BigDecimal.ZERO);
+            BigDecimal variance = budgetedAmount.subtract(actualAmount);
+            rows.add(List.of(category, budgetedAmount.toPlainString(), actualAmount.toPlainString(),
+                    variance.toPlainString()));
+        }
         return rows;
     }
 

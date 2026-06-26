@@ -5,14 +5,11 @@ import java.math.RoundingMode;
 import java.text.NumberFormat;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
-import javax.swing.JFormattedTextField;
-import javax.swing.JSpinner;
-import javax.swing.SpinnerDateModel;
 
 public final class UiSupport {
     private static final NumberFormat CURRENCY_FORMAT = NumberFormat.getCurrencyInstance();
@@ -20,25 +17,36 @@ public final class UiSupport {
     private UiSupport() {
     }
 
-    public static JSpinner createDateSpinner() {
-        JSpinner spinner = new JSpinner(new SpinnerDateModel());
-        JSpinner.DateEditor editor = new JSpinner.DateEditor(spinner, "yyyy-MM-dd");
-        spinner.setEditor(editor);
-        JFormattedTextField textField = editor.getTextField();
-        textField.setColumns(10);
-        return spinner;
+    public static DatePickerField createDatePickerField() {
+        return new DatePickerField();
     }
 
-    public static LocalDate toLocalDate(JSpinner spinner) {
-        Date date = (Date) spinner.getValue();
+    public static DatePickerField createDatePickerField(LocalDate initialDate) {
+        return new DatePickerField(initialDate);
+    }
+
+    public static LocalDate toLocalDate(DatePickerField datePickerField) {
+        return datePickerField.getDate();
+    }
+
+    public static void setLocalDate(DatePickerField datePickerField, LocalDate localDate) {
+        datePickerField.setDate(localDate);
+    }
+
+    public static LocalDate firstDayOfCurrentMonth() {
+        return YearMonth.now().atDay(1);
+    }
+
+    public static LocalDate lastDayOfCurrentMonth() {
+        return YearMonth.now().atEndOfMonth();
+    }
+
+    public static java.util.Date toDate(LocalDate localDate) {
+        return Date.from(localDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
+    }
+
+    public static LocalDate toLocalDate(Date date) {
         return Instant.ofEpochMilli(date.getTime()).atZone(ZoneId.systemDefault()).toLocalDate();
-    }
-
-    public static void setLocalDate(JSpinner spinner, LocalDate localDate) {
-        Calendar calendar = Calendar.getInstance();
-        calendar.clear();
-        calendar.set(localDate.getYear(), localDate.getMonthValue() - 1, localDate.getDayOfMonth());
-        spinner.setValue(calendar.getTime());
     }
 
     public static BigDecimal parseAmount(String text) {

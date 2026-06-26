@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+
 import javax.swing.BorderFactory;
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.JButton;
@@ -24,7 +25,6 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JSpinner;
 import javax.swing.JSplitPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
@@ -37,9 +37,9 @@ public final class BudgetReportingPanel extends JPanel {
     private final JComboBox<String> categoryBox;
     private final JTextField descriptionField;
     private final JTextField amountField;
-    private final JSpinner actualDateSpinner;
-    private final JSpinner startDateSpinner;
-    private final JSpinner endDateSpinner;
+    private final DatePickerField actualDateField;
+    private final DatePickerField startDateField;
+    private final DatePickerField endDateField;
     private final JLabel summaryLabel;
     private final JButton addButton;
     private final JButton updateButton;
@@ -57,9 +57,9 @@ public final class BudgetReportingPanel extends JPanel {
         categoryBox.setEditable(true);
         descriptionField = new JTextField(16);
         amountField = new JTextField(10);
-        actualDateSpinner = UiSupport.createDateSpinner();
-        startDateSpinner = UiSupport.createDateSpinner();
-        endDateSpinner = UiSupport.createDateSpinner();
+        actualDateField = UiSupport.createDatePickerField();
+        startDateField = UiSupport.createDatePickerField(UiSupport.firstDayOfCurrentMonth());
+        endDateField = UiSupport.createDatePickerField(UiSupport.lastDayOfCurrentMonth());
         summaryLabel = new JLabel();
         addButton = new JButton("Add Actual Expense");
         updateButton = new JButton("Update Selected");
@@ -69,6 +69,8 @@ public final class BudgetReportingPanel extends JPanel {
         actualExpenseTable = new JTable(actualExpenseTableModel);
         tableModel = new VarianceTableModel();
         setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        startDateField.addDateChangeListener(this::refreshView);
+        endDateField.addDateChangeListener(this::refreshView);
         add(buildTopPanel(), BorderLayout.NORTH);
         add(buildCenterPanel(), BorderLayout.CENTER);
         add(summaryLabel, BorderLayout.SOUTH);
@@ -114,7 +116,7 @@ public final class BudgetReportingPanel extends JPanel {
         constraints.gridy = 3;
         formPanel.add(new JLabel("Date"), constraints);
         constraints.gridx = 1;
-        formPanel.add(actualDateSpinner, constraints);
+        formPanel.add(actualDateField, constraints);
         addButton.addActionListener(event -> addActualExpense());
         updateButton.addActionListener(event -> updateActualExpense());
         deleteButton.addActionListener(event -> deleteActualExpense());
@@ -135,9 +137,9 @@ public final class BudgetReportingPanel extends JPanel {
     private JPanel buildFilterPanel() {
         JPanel filterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         filterPanel.add(new JLabel("Start"));
-        filterPanel.add(startDateSpinner);
+        filterPanel.add(startDateField);
         filterPanel.add(new JLabel("End"));
-        filterPanel.add(endDateSpinner);
+        filterPanel.add(endDateField);
         JButton refreshButton = new JButton("Refresh Reporting");
         refreshButton.addActionListener(event -> refreshView());
         filterPanel.add(refreshButton);
@@ -178,7 +180,7 @@ public final class BudgetReportingPanel extends JPanel {
             Object selectedCategory = categoryBox.getEditor().getItem();
             String category = selectedCategory == null ? "" : selectedCategory.toString();
             BigDecimal amount = UiSupport.parseAmount(amountField.getText());
-            LocalDate entryDate = UiSupport.toLocalDate(actualDateSpinner);
+            LocalDate entryDate = UiSupport.toLocalDate(actualDateField);
             dataStore.addEntry(
                     new BudgetEntry(EntryType.ACTUAL_EXPENSE, category, descriptionField.getText(), amount, entryDate));
             clearFormFields();
@@ -224,7 +226,7 @@ public final class BudgetReportingPanel extends JPanel {
         Object selectedCategory = categoryBox.getEditor().getItem();
         String category = selectedCategory == null ? "" : selectedCategory.toString();
         BigDecimal amount = UiSupport.parseAmount(amountField.getText());
-        LocalDate entryDate = UiSupport.toLocalDate(actualDateSpinner);
+        LocalDate entryDate = UiSupport.toLocalDate(actualDateField);
         return new BudgetEntry(EntryType.ACTUAL_EXPENSE, category, descriptionField.getText(), amount, entryDate);
     }
 
@@ -240,7 +242,7 @@ public final class BudgetReportingPanel extends JPanel {
         categoryBox.setSelectedItem(selectedActualEntry.getCategory());
         descriptionField.setText(selectedActualEntry.getDescription());
         amountField.setText(selectedActualEntry.getAmount().toPlainString());
-        UiSupport.setLocalDate(actualDateSpinner, selectedActualEntry.getEntryDate());
+        UiSupport.setLocalDate(actualDateField, selectedActualEntry.getEntryDate());
         addButton.setEnabled(false);
         updateButton.setEnabled(true);
         deleteButton.setEnabled(true);
@@ -261,7 +263,7 @@ public final class BudgetReportingPanel extends JPanel {
         if (categoryBox.getItemCount() > 0 && categoryBox.getSelectedItem() == null) {
             categoryBox.setSelectedIndex(0);
         }
-        UiSupport.setLocalDate(actualDateSpinner, LocalDate.now());
+        UiSupport.setLocalDate(actualDateField, LocalDate.now());
     }
 
     private void refreshView() {
@@ -269,8 +271,8 @@ public final class BudgetReportingPanel extends JPanel {
                 : categoryBox.getSelectedItem();
         categoryBox.setModel(new DefaultComboBoxModel<>(dataStore.getExpenseCategories().toArray(String[]::new)));
         categoryBox.setSelectedItem(selectedCategory);
-        LocalDate startDate = UiSupport.toLocalDate(startDateSpinner);
-        LocalDate endDate = UiSupport.toLocalDate(endDateSpinner);
+        LocalDate startDate = UiSupport.toLocalDate(startDateField);
+        LocalDate endDate = UiSupport.toLocalDate(endDateField);
         if (endDate.isBefore(startDate)) {
             summaryLabel.setText("End date must be on or after the start date.");
             actualExpenseTableModel.setEntries(List.of());
@@ -305,7 +307,7 @@ public final class BudgetReportingPanel extends JPanel {
                 categoryBox.setSelectedItem(selectedActualEntry.getCategory());
                 descriptionField.setText(selectedActualEntry.getDescription());
                 amountField.setText(selectedActualEntry.getAmount().toPlainString());
-                UiSupport.setLocalDate(actualDateSpinner, selectedActualEntry.getEntryDate());
+                UiSupport.setLocalDate(actualDateField, selectedActualEntry.getEntryDate());
                 addButton.setEnabled(false);
                 updateButton.setEnabled(true);
                 deleteButton.setEnabled(true);
@@ -320,8 +322,8 @@ public final class BudgetReportingPanel extends JPanel {
 
     private void exportCsv() {
         try {
-            LocalDate startDate = UiSupport.toLocalDate(startDateSpinner);
-            LocalDate endDate = UiSupport.toLocalDate(endDateSpinner);
+            LocalDate startDate = UiSupport.toLocalDate(startDateField);
+            LocalDate endDate = UiSupport.toLocalDate(endDateField);
             if (endDate.isBefore(startDate)) {
                 throw new IllegalArgumentException("End date must be on or after the start date.");
             }
@@ -341,8 +343,8 @@ public final class BudgetReportingPanel extends JPanel {
     }
 
     private List<List<String>> buildReportingCsvRows() {
-        LocalDate startDate = UiSupport.toLocalDate(startDateSpinner);
-        LocalDate endDate = UiSupport.toLocalDate(endDateSpinner);
+        LocalDate startDate = UiSupport.toLocalDate(startDateField);
+        LocalDate endDate = UiSupport.toLocalDate(endDateField);
         if (endDate.isBefore(startDate)) {
             throw new IllegalArgumentException("End date must be on or after the start date.");
         }

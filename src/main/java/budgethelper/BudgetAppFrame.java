@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+
 import javax.imageio.ImageIO;
 import javax.swing.JFrame;
 import javax.swing.JMenu;
@@ -34,8 +35,8 @@ public final class BudgetAppFrame extends JFrame {
         preferences = AppPreferences.defaults();
         tabs.addTab("Profile", new ProfileTabPanel(dataStore, new ProfileActions()));
         tabs.addTab("Budget Entry", new BudgetEntryPanel(dataStore));
-        tabs.addTab("Summary", new BudgetSummaryPanel(dataStore));
         tabs.addTab("Reporting", new BudgetReportingPanel(dataStore));
+        tabs.addTab("Summary", new BudgetSummaryPanel(dataStore));
         setContentPane(tabs);
         setJMenuBar(buildMenuBar());
         setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
@@ -234,8 +235,8 @@ public final class BudgetAppFrame extends JFrame {
     private void applyInitialTabSelection() {
         tabs.setSelectedIndex(switch (preferences.initialTabId()) {
             case AppPreferences.PROFILE_TAB_ID -> 0;
-            case AppPreferences.SUMMARY_TAB_ID -> 2;
-            case AppPreferences.REPORTING_TAB_ID -> 3;
+            case AppPreferences.REPORTING_TAB_ID -> 2;
+            case AppPreferences.SUMMARY_TAB_ID -> 3;
             default -> 1;
         });
     }

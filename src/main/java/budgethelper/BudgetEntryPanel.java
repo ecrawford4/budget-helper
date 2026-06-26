@@ -12,6 +12,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -23,7 +24,6 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JSpinner;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
@@ -68,7 +68,7 @@ public final class BudgetEntryPanel extends JPanel {
         private final JComboBox<String> categoryBox;
         private final JTextField descriptionField;
         private final JTextField amountField;
-        private final JSpinner dateSpinner;
+        private final DatePickerField dateField;
         private final JButton addButton;
         private final JButton updateButton;
         private final JButton deleteButton;
@@ -87,7 +87,7 @@ public final class BudgetEntryPanel extends JPanel {
             categoryBox.setEditable(true);
             descriptionField = new JTextField(18);
             amountField = new JTextField(12);
-            dateSpinner = UiSupport.createDateSpinner();
+            dateField = UiSupport.createDatePickerField();
             tableModel = new EntryTableModel();
             table = new JTable(tableModel);
             addButton = new JButton(entryType == EntryType.INCOME ? "Add Income" : "Add Expense");
@@ -129,7 +129,7 @@ public final class BudgetEntryPanel extends JPanel {
             constraints.gridy = 3;
             formPanel.add(new JLabel("Date"), constraints);
             constraints.gridx = 1;
-            formPanel.add(dateSpinner, constraints);
+            formPanel.add(dateField, constraints);
             addButton.addActionListener(event -> addEntry());
             updateButton.addActionListener(event -> updateSelectedEntry());
             deleteButton.addActionListener(event -> deleteSelectedEntry());
@@ -176,7 +176,7 @@ public final class BudgetEntryPanel extends JPanel {
                 Object selectedCategory = categoryBox.getEditor().getItem();
                 String category = selectedCategory == null ? "" : selectedCategory.toString();
                 BigDecimal amount = UiSupport.parseAmount(amountField.getText());
-                LocalDate entryDate = UiSupport.toLocalDate(dateSpinner);
+                LocalDate entryDate = UiSupport.toLocalDate(dateField);
                 dataStore.addEntry(new BudgetEntry(entryType, category, descriptionField.getText(), amount, entryDate));
                 clearFormFields();
             } catch (RuntimeException exception) {
@@ -225,7 +225,7 @@ public final class BudgetEntryPanel extends JPanel {
             Object selectedCategory = categoryBox.getEditor().getItem();
             String category = selectedCategory == null ? "" : selectedCategory.toString();
             BigDecimal amount = UiSupport.parseAmount(amountField.getText());
-            LocalDate entryDate = UiSupport.toLocalDate(dateSpinner);
+            LocalDate entryDate = UiSupport.toLocalDate(dateField);
             return new BudgetEntry(entryType, category, descriptionField.getText(), amount, entryDate);
         }
 
@@ -241,7 +241,7 @@ public final class BudgetEntryPanel extends JPanel {
             categoryBox.setSelectedItem(selectedEntry.getCategory());
             descriptionField.setText(selectedEntry.getDescription());
             amountField.setText(selectedEntry.getAmount().toPlainString());
-            UiSupport.setLocalDate(dateSpinner, selectedEntry.getEntryDate());
+            UiSupport.setLocalDate(dateField, selectedEntry.getEntryDate());
             addButton.setEnabled(false);
             updateButton.setEnabled(true);
             deleteButton.setEnabled(true);
@@ -262,7 +262,7 @@ public final class BudgetEntryPanel extends JPanel {
             if (categoryBox.getItemCount() > 0 && categoryBox.getSelectedItem() == null) {
                 categoryBox.setSelectedIndex(0);
             }
-            UiSupport.setLocalDate(dateSpinner, LocalDate.now());
+            UiSupport.setLocalDate(dateField, LocalDate.now());
         }
 
         private void refresh(List<BudgetEntry> entries, List<String> categories) {
@@ -280,7 +280,7 @@ public final class BudgetEntryPanel extends JPanel {
                     categoryBox.setSelectedItem(selectedEntry.getCategory());
                     descriptionField.setText(selectedEntry.getDescription());
                     amountField.setText(selectedEntry.getAmount().toPlainString());
-                    UiSupport.setLocalDate(dateSpinner, selectedEntry.getEntryDate());
+                    UiSupport.setLocalDate(dateField, selectedEntry.getEntryDate());
                     updateButton.setEnabled(true);
                     deleteButton.setEnabled(true);
                     addButton.setEnabled(false);
